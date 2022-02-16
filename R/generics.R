@@ -6,7 +6,7 @@
 #' @param angle Logical. Default (TRUE).
 #' @return A list containing two vectors 'angle' and 'distance'.
 #'@export
-cartesian_to_polar_coordinate <- function(x,y){
+cartesian_to_polar_coordinate.numeric <- function(x,y){
   return(list(
     "angle"=atan2(y={{y}},x={{x}}),
     "distance"=sqrt(({{x}})^2 + ({{y}})^2)
@@ -18,7 +18,7 @@ cartesian_to_polar_coordinate <- function(x,y){
 #' @param theta Angle (in radians)
 #' @return A list containing two vectors 'x' and 'y'.
 #' @export
-polar_to_cartesian_coordinate <- function(distance,theta){
+polar_to_cartesian_coordinate.numeric <- function(distance,theta){
   return(list(
     x = distance*cos(theta),
     y= distance*sin(theta)
@@ -54,10 +54,27 @@ degree_to_radian <- function(degree){
 #' @param y Y coordinate
 #' @return A list with vectors 'X' and 'Y'.
 #' @export
-coordinate_rotation <- function(x,y,rotation=0){
+coordinate_rotation.numeric <- function(x,y,rotation=0){
   return(
     list("x"=cos(theta) * (x) + sin(theta) * (y),
          "y"=cos(theta) * (y) - sin(theta) * (x)
          )
+  )
+}
+
+#' Circular filter for coordinate vectors
+#' @param x Vector of x coordinates
+#' @param y Vector of y coordinates
+#' @param radius Maximum radius, inclusive.
+#' @return list of two vectors: 'x' & 'y'.
+filter_radius.numeric <- function(x,y,radius=10,...){
+
+    distances <- distance_2d(x1 = 0,y1=0,x2 = {{x}},y2 = {{y}})
+
+  return(
+    list(
+      "x"=x[which(distances<=radius)],
+      "y"=y[which(distances<=radius)]
+    )
   )
 }
