@@ -202,3 +202,135 @@ plot.coord.data.frame <- function(data,radius=10){
     ggplot2::coord_fixed()+
     ggforce::geom_circle(aes(x0=0,y0=0,r=radius),inherit.aes=FALSE,size=1/10)
 }
+
+
+#' Reflect match
+#'
+match_reflect.coord.data.frame <- function(.data,coord.df2,diameter_tolerance=3){
+  reflecteddata <- .data %>% mutate(x=-x)
+  normal_value <- match_rotate(.data={.data},coord.df2 = {coord.df2},diameter_tolerance = {diameter_tolerance})[[3]]
+  reflect_value <- match_rotate(.data=reflecteddata,coord.df2 = {coord.df2},diameter_tolerance = {diameter_tolerance})[[3]]
+
+  reflect_gain <- normal_value-reflect_value
+
+  return_coords <- if(reflect_value<normal_value) reflectdata else .data
+
+  return(
+    list(
+      "Coordinates" = return_coords,
+      "Reflection status"=(reflect_value<normal_value),
+      "Reflection gain"=reflect_gain
+    )
+  )
+
+
+}
+
+
+match_reflect <- function(.data,coord.df2,diameter_tolerance=3) UseMethod("match_reflect")
+
+
+
+
+
+
+#'
+#' #' Closest matches
+#' #' @param .data A coord.data.frame
+#' #' @param coord.df2 A coord.data.frame
+#' #' @return A data.frame of possible matches.
+#' #' @export
+#' tree_matching.coord.data.frame <- function(.data,coord.df2,diameter_tolerance,distance_tolerance){
+#'   #enforce class.
+#'   stopifnot("coord.data.frame" %in% class(.data)  & "coord.data.frame" %in% class(coord.df2))
+#'
+#'   #Check required match columns are present in both coord.data.frames
+#'   if(!all(c("diameter","species") %in% colnames(.data))) stop("Required columns for matching are not present in .data")
+#'   if(!all(c("diameter","species") %in% colnames(coord.df2))) stop("Required columns for matching are not present in coord.df2")
+#'
+#'   #Empty matches data.frame
+#'   #add suffix to column names of coord.df2
+#'   neighbouring <- as.data.frame(matrix(
+#'     nrow = 0,
+#'     ncol = (ncol(coords_df) + ncol(coord.df2)),
+#'     dimnames = list(c(), c(
+#'       colnames(coords.df), paste0(colnames(coords.df2), ".2")
+#'     ))
+#'   ))
+#'
+#'   #Arrange second data.frame by descending diameter.
+#'   coord.df2 <- arrange(coord.df2,desc(diameter))
+#'
+#'   #For every row in the second data frame, find all acceptable matches.
+#'   for(i in 1:nrow(coord.df2)){
+#'     point_species <- coord.df2[i,"species"]
+#'     point_diameter <- coord.df2[i,"diameter"]
+#'     point_x <- coord.df2[i,"x"]
+#'     point_y <- coord.df2[i,"y"]
+#'
+#'     neighbours <- .data %>% filter(species==point_species,
+#'                                        diameter<=point_diameter+diameter_tolerance,
+#'                                        diameter>=point_diameter-diameter_tolerance,
+#'                                        !(id %in% neighbouring[,"id"])
+#'     ) %>%
+#'       mutate(distance=distance_2d(x1 =point_x,y1 = point_y,x2 = x,y2 = y)) %>%
+#'       slice_min(order_by = distance,with_ties = FALSE) %>% select(-distance)
+#'
+#'     #add to the output table if data.frame has non-zero rows.
+#'     if(nrow(neighbours!=0)) neighbouring[i,] <- cbind(neighbours,coord.df2[i,]) else {
+#'       temp <- data.frame(rep(NA,ncol(.data)))
+#'       colnames(temp) <- colnames(.data)
+#'       neighbouring[i,] <- cbind(temp,coord.df2[i,])
+#'     }
+#'
+#'   }
+#'
+#'   class(neighbouring) <- c("coord.data.frame","data.frame")
+#'
+#'   return(
+#'     neighbouring
+#'   )
+#'
+#'
+#' }
+#'
+#'
+#' tree_matching <- function(.data,coord.df2,diameter_tolerance) UseMethod("tree_matching")
+
+
+#'Convert a coord.data.frame to a matrix with points represented as a gaussian process.
+#'@param data A coord.data.frame
+#'@param point_strength An attribute to be used as the amplitude of the gaussian process.
+#'@param position_error Standard deviation of gaussian process.
+#'@param radius Radius of plot.
+#'@param resolution Resolution of output matrix.
+#'@return A data.frame containing columns: x,y,value.
+#'@export
+produce_gauss_matrix.coord.data.frame <- function(data,point_strength=diameter,position_error=0.5,radius=10,resolution=0.2){
+
+  point_strength_vector <- data %>% select({{point_strength}})
+
+  value_matrix <-  data.frame(x=seq(-radius,radius,resolution)) %>% merge(data.frame(y=seq(-radius,radius,resolution))) %>% mutate(value=0)
+
+  value_matrix2 <- value_matrix
+
+  for(i in 1:nrow(data)){
+    x0 <- data[i,"x"]
+    y0 <- data[i,"y"]
+    point_strength_list <- data %>% select(!!{point_strength})
+    point_strength_list <- point_strength_list[i,]
+
+    value_matrix2 <- value_matrix2 %>% mutate(value2=round(point_strength_list*exp(-((((x-x0)^2)/(2*position_error^2))+((y-y0)^2)/(2*position_error^2))),digits = 3))
+
+    value_matrix2 <- value_matrix2 %>% rowwise() %>% mutate(value= max(value,value2)) %>% select(-value2)
+  }
+
+  return(
+    value_matrix2
+  )
+
+}
+
+produce_gauss_matrix <- function(data,point_strength,position_error=0.5,radius=10,resolution=0.2) UseMethod("produce_gauss_matrix")
+
+
