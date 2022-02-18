@@ -298,13 +298,7 @@ match_reflect <- function(.data,coord.df2,diameter_tolerance=3) UseMethod("match
 #' tree_matching <- function(.data,coord.df2,diameter_tolerance) UseMethod("tree_matching")
 
 
-#'Convert a coord.data.frame to a matrix with points represented as a gaussian process.
-#'@param data A coord.data.frame
-#'@param point_strength An attribute to be used as the amplitude of the gaussian process.
-#'@param position_error Standard deviation of gaussian process.
-#'@param radius Radius of plot.
-#'@param resolution Resolution of output matrix.
-#'@return A data.frame containing columns: x,y,value.
+
 #'@export
 produce_gauss_matrix.coord.data.frame <- function(data,point_strength=diameter,position_error=0.5,radius=10,resolution=0.2){
 
@@ -322,8 +316,12 @@ produce_gauss_matrix.coord.data.frame <- function(data,point_strength=diameter,p
 
     value_matrix2 <- value_matrix2 %>% mutate(value2=round(point_strength_list*exp(-((((x-x0)^2)/(2*position_error^2))+((y-y0)^2)/(2*position_error^2))),digits = 3))
 
-    value_matrix2 <- value_matrix2 %>% rowwise() %>% mutate(value= max(value,value2)) %>% select(-value2)
+    value_matrix2 <- value_matrix2 %>% rowwise() %>% mutate(value= max(value,value2)) %>% select(-value2) %>% ungroup()
   }
+
+  class(value_matrix2) <- c("gauss.coord.data.frame","data.frame")
+  attr(value_matrix2,'res') <- resolution
+  attr(value_matrix2,'radius') <- radius
 
   return(
     value_matrix2
@@ -331,6 +329,42 @@ produce_gauss_matrix.coord.data.frame <- function(data,point_strength=diameter,p
 
 }
 
+#'Convert a coord.data.frame to a matrix with points represented as a gaussian process.
+#'@param data A coord.data.frame
+#'@param point_strength An attribute to be used as the amplitude of the gaussian process.
+#'@param position_error Standard deviation of gaussian process.
+#'@param radius Radius of plot.
+#'@param resolution Resolution of output matrix.
+#'@return A gauss.coord.data.frame containing columns: x,y,value.
 produce_gauss_matrix <- function(data,point_strength,position_error=0.5,radius=10,resolution=0.2) UseMethod("produce_gauss_matrix")
 
 
+#'Plot a gauss.coord.data.frame
+#'@export
+plot.gauss.coord.data.frame <- function(x){
+  x %>% ggplot()+geom_raster(aes(x=x,y=y,fill=value))+theme_void()+coord_fixed()+theme(legend.position = 0,
+                                                                                       plot.margin = unit(c(0,0,0,0),"mm"))
+}
+
+
+#'@export
+save_gauss.gauss.coord.data.frame <- function(x,filename){
+  stopifnot(is.character(filename))
+  if(!grepl(filename,pattern='.png$')) filename <- str_glue(filename,'.png')
+  plot1 <- x %>% ggplot()+
+    geom_raster(aes(x=x,y=y,fill=value))+
+    coord_fixed()+
+    cowplot::theme_nothing()+
+    scale_x_continuous(expand=c(0,0)) +
+    scale_y_continuous(expand=c(0,0)) +
+    labs(x = NULL, y = NULL)
+  png(filename={filename}, width=attr(x,'radius')/attr(x,'res'),height = attr(x,'radius')/attr(x,'res'),units = 'px')
+  print(plot1)
+  dev.off()
+}
+
+#'Save a gauss.coord.data.frame as a .png in the working directory.
+#'@param x A gauss.coord.data.frame
+#'@param filename A filename, including extension.
+#'@export
+save_gauss <- function(x,filename) UseMethod("save_gauss")
