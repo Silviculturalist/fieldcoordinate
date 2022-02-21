@@ -358,7 +358,7 @@ save_gauss.gauss.coord.data.frame <- function(x,filename){
     scale_x_continuous(expand=c(0,0)) +
     scale_y_continuous(expand=c(0,0)) +
     labs(x = NULL, y = NULL)
-  png(filename={filename}, width=attr(x,'radius')/attr(x,'res'),height = attr(x,'radius')/attr(x,'res'),units = 'px')
+  png(filename={filename},width=attr(x,'radius')/attr(x,'res'),height = attr(x,'radius')/attr(x,'res'),units = 'px')
   print(plot1)
   dev.off()
 }
@@ -368,3 +368,73 @@ save_gauss.gauss.coord.data.frame <- function(x,filename){
 #'@param filename A filename, including extension.
 #'@export
 save_gauss <- function(x,filename) UseMethod("save_gauss")
+
+
+#' Translate a coordinate system.
+#' @param x Points to be translated right.
+#' @param y Points to be translated up.
+#' @param coord.data.frame A coord.data.frame.
+#' @return A coord.data.frame
+#' @export
+
+translate_coordinates.coord.data.frame <- function(coord.data.frame,x,y){
+  coord.data.frame[,"x"] <- coord.data.frame[,"x"]+x
+  coord.data.frame[,"y"] <- coord.data.frame[,"y"]+y
+  return(
+    coord.data.frame
+  )
+}
+
+translate_coordinates <- function(coord.data.frame,x,y) UseMethod("translate_coordinates")
+
+
+
+#' Apply a transform from NiftyReg on a coordinate.
+#' @param coord.data.frame A coord.data.frame containing the coordinates to be
+#' transformed.
+#' @param affine_matrix A NiftyReg affine matrix. Class 'affine'.
+#' @details OBSERVE, this only finds translation and skew.
+#' @return A coord.data.frame
+coordinate_transform.coord.data.frame <- function(coord.data.frame, affine_matrix){
+
+  yaw <- decomposeAffine(affine_matrix)[["angles"]][["yaw"]]
+  translate_x <- decomposeAffine(affine_matrix)[["translation"]][["x"]]
+  translate_y <- decomposeAffine(affine_matrix)[["translation"]][["y"]]
+
+  #translation
+  coord.data.frame2<- translate_coordinates(coord.data.frame = {{coord.data.frame}},x = translate_x,y = translate_y)
+
+  #skew
+  coord.data.frame2 <- coordinate_rotation(coord.data.frame2,rotation = yaw)
+
+  return(
+    coord.data.frame2
+  )
+
+}
+
+coordinate_transform <- function(coord.data.frame, affine_matrix) UseMethod("coordinate_transform")
+
+
+#' Reflect a coordinate system.
+#' @param coord.data.frame A coord.data.frame
+#' @param x Logical. (Default: TRUE) Should the coordinates be reflected across the x-axis?
+#' @param y Logical. (Default: FALSE) Should the coordinates be reflected across the y-axis?
+#' @return A coord.data.frame
+coordinate_reflect.coord.data.frame <- function(coord.data.frame,x=TRUE,y=FALSE){
+  stopifnot(is.logical(x) & is.logical(y))
+
+  if(isTRUE(x)){
+    coord.data.frame$x <- (coord.data.frame$x)*-1
+  }
+
+  if(isTRUE(y)){
+    coord.data.frame$y <- (coord.data.frame$y)*-1
+  }
+
+  return(
+    coord.data.frame
+  )
+}
+
+coordinate_reflect <- function(coord.data.frame,x=TRUE,y=FALSE) UseMethod("coordinate_reflect")
