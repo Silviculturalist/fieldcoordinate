@@ -1,11 +1,17 @@
 Package: fieldcoordinate
 Type: Package
-Title: What the Package Does (Title Case)
+Title: Handle coordinate set tree inventories.
 Version: 0.1.0
-Author: Who wrote it
-Maintainer: The package maintainer <yourself@somewhere.net>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
+Author: Carl Vigren
+Maintainer: Carl Vigren <carl.vigren@slu.se>
+Description: A package for handling and matching coordinate points from
+    forest inventories.
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true
+Imports: 
+    dplyr,
+    ggforce,
+    ggplot2,
+    RNiftyReg
+RoxygenNote: 7.1.2

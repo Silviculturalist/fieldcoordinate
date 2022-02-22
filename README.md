@@ -16,7 +16,7 @@ A coord.data.frame additionally can contain point-attribute variables.
 
 Construct a coord.data.frame with the `as.coord.data.frame` function.
 
-``` R
+``` r
 df %>% as.coord.data.frame(id=id,x=x,y=y,diameter,species)
 ```
 
@@ -24,13 +24,13 @@ df %>% as.coord.data.frame(id=id,x=x,y=y,diameter,species)
 
 `filter_radius` Filter coordinate points by maximum radius (inclusive). Filter origin can be set.
 
-``` R
+``` r
 coords.df %>% filter_radius(x=2, y=3, radius=10)
 ```
 
 `plot` Plot a coord.data.frame by calling `ggplot2`. This is a very preliminary function that assumes that your coord.data.frame has the variables 'diameter' and 'species'.
 
-![A simple plot of a coord.data.frame](<https://github.com/Silviculturalist/fieldcoordinate/blob/main/img/coordinate_plot.png?raw=true>)
+![A simple plot of a coord.data.frame](https://github.com/Silviculturalist/fieldcoordinate/blob/main/img/coordinate_plot.png?raw=true)
 
 ## Convenience functions
 
@@ -60,7 +60,7 @@ coords.df %>% filter_radius(x=2, y=3, radius=10)
 
 This can be plotted with `plot` .
 
-![A gaussian signal representation of a coord.data.frame](<https://github.com/Silviculturalist/fieldcoordinate/blob/main/img/gauss1.png?raw=true>)
+![A gaussian signal representation of a coord.data.frame](https://github.com/Silviculturalist/fieldcoordinate/blob/main/img/gauss1.png?raw=true)
 
 Image creation and saving is handled by `save_gauss` which takes an `gauss.coord.data.frame` and saves it as an .png without any borders.
 
@@ -76,4 +76,4 @@ forward(affine_transformation)
 
 The Affine matrix can be handed to `fieldcoordinate::coordinate_transform` to apply the transformations on the coord.data.frame rather than the gaussian representation. OBSERVE this only handles translation and rotation so far.
 
-![source, target, transformed source](<https://github.com/Silviculturalist/fieldcoordinate/blob/main/img/animation.gif?raw=true>)
+![source, target, transformed source](https://github.com/Silviculturalist/fieldcoordinate/blob/main/img/animation.gif?raw=true)
