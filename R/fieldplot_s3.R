@@ -371,3 +371,65 @@ coordinate_reflect.coord.data.frame <- function(coord.data.frame,x=TRUE,y=FALSE)
 
 #'@export
 coordinate_reflect <- function(coord.data.frame,x=TRUE,y=FALSE) UseMethod("coordinate_reflect")
+
+
+#'@param data A data.frame
+#'@param stand_id A character with the variable name which identifies stands.
+#'@param Year A character with the variable name denoting different years.
+#'@param save TRUE (default) / FALSE. Saves the transformed coordinates.
+#'@param filepath Folder in which to store matches (creates a subfolder for each stand)
+#'@export
+#'@examples
+#'tree_coords2_split <- tree_coords2 %>% group_by(standnumber,standnr2) %>% group_split(.keep = TRUE)
+#'lapply(tree_coords2_split,FUN = match_trees,stand_id = 'standnumber',Year = 'Year')
+
+match_trees <- function(data, stand_id, Year='Year', filepath="matched_trees/", save=TRUE){
+  #Check to make sure there are years to match between.
+  #Include NA statement to avoid zero correlation matches - e.g. trees without Diameter.
+  if(nrow(data %>% filter(!is.na(Diameter)) %>% group_nest(Year))<=1) return(NULL)
+
+
+  stand_id <- data[[1,stand_id]]
+
+  #number of years to index
+  max_index <- length(data %>% group_nest(Year))
+
+  #split data.frame by years.
+  splits <- split(data,data[,{Year}]) %>% lapply(.,FUN = as.coord.data.frame,id=TreeID,x=GPSNorth,y=GPSEast,Species,Diameter,Height)
+
+  #Check filepath exists, create if it doesn't.
+  if(!dir.exists(filepath)) dir.create(filepath)
+
+  #Create filepath for stand number.
+  if(!dir.exists(str_glue(filepath,stand_id))) dir.create(str_glue(filepath,stand_id))
+
+  #Save a representation for maximum year.
+  splits[[max_index]] %>% as.coord.data.frame(id=id,x=x,y=y,Species,Diameter,Height) %>% produce_gauss_matrix(point_strength = 'Diameter',position_error = 0.5,radius=10,resolution=0.1) %>%  save_gauss(filename = str_glue(filepath,stand_id,"/",stand_id,"_year_",names(splits[max_index])))
+
+  #read representation
+  gauss_max <- png::readPNG(paste0(str_glue(filepath,stand_id,"/",stand_id,"_year_",names(splits[max_index]),".png")))
+
+  #try to shift coordinates to latest year (max_index)
+  for(i in 1:(max_index-1)){
+    #save gaussian representation for year i.
+    splits[[i]] %>% as.coord.data.frame(id=id,x=x,y=y,Species,Diameter,Height) %>%  produce_gauss_matrix(point_strength = 'Diameter',position_error = 0.5,radius=10,resolution=0.1) %>%  save_gauss(filename = str_glue(filepath,stand_id,"/",stand_id,"_year_",names(splits[i])))
+
+    #find appropriate transform
+    gauss_1 <- png::readPNG(source = paste0(str_glue(filepath,stand_id,"/",stand_id,"_year_",names(splits[i]),".png")))
+
+    affine_transformation <- RNiftyReg::niftyreg.linear(source = gauss_1,target = gauss_max)
+
+    #undertake transform
+    splits[[i]]<- splits[[i]] %>% coordinate_transform(affine_matrix = RNiftyReg::forward(affine_transformation))
+
+    #save out.. image
+    png::writePNG(image=affine_transformation$image,target = paste0(filepath,stand_id,"/",stand_id,"_year_",names(splits[i]),"_project_to_",names(splits[max_index]),".png"))
+
+    #save out.. transformation
+    RNiftyReg::saveTransform(RNiftyReg::forward(affine_transformation),file=paste0(filepath,stand_id,"/",stand_id,"_year_",names(splits[i]),"_project_to_",names(splits[max_index]),".rds"))
+
+  }
+
+  if(isTRUE(save)) splits %>% bind_rows(.id = "Year") %>% write.csv(paste0(filepath,stand_id,"/",stand_id,".csv"),row.names = FALSE)
+  print(stand_id)
+}
