@@ -243,7 +243,7 @@ produce_gauss_matrix.coord.data.frame <- function(data,point_strength=diameter,p
 
     value_matrix2 <- value_matrix2 %>% mutate(value2=round(point_strength_list*exp(-((((x-x0)^2)/(2*position_error^2))+((y-y0)^2)/(2*position_error^2))),digits = 3))
 
-    value_matrix2 <- value_matrix2 %>% rowwise() %>% mutate(value= max(value,value2)) %>% select(-value2) %>% ungroup()
+    value_matrix2 <- value_matrix2 %>% rowwise() %>% mutate(value= max(value,value2,na.rm=TRUE)) %>% select(-value2) %>% ungroup()
   }
 
   class(value_matrix2) <- c("gauss.coord.data.frame","data.frame")
@@ -383,13 +383,12 @@ coordinate_reflect <- function(coord.data.frame,x=TRUE,y=FALSE) UseMethod("coord
 #'tree_coords2_split <- tree_coords2 %>% group_by(standnumber,standnr2) %>% group_split(.keep = TRUE)
 #'lapply(tree_coords2_split,FUN = match_trees,stand_id = 'standnumber',Year = 'Year')
 
-match_trees <- function(data, stand_id, Year='Year', filepath="matched_trees/", save=TRUE){
+match_trees <- function(data, stand_id, Year='Year', filepath="matched_trees/", save=TRUE,skipahead=TRUE){
   #Check to make sure there are years to match between.
   #Include NA statement to avoid zero correlation matches - e.g. trees without Diameter.
   if(nrow(data %>% filter(!is.na(Diameter)) %>% group_nest(Year))<=1) return(NULL)
-
-
   stand_id <- data[[1,stand_id]]
+  if(skipahead & stand_id %in% dir(filepath)) return(print(stand_id))
 
   #number of years to index
   max_index <- length(data %>% group_nest(Year))
