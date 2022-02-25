@@ -432,3 +432,37 @@ match_trees <- function(data, stand_id, Year='Year', filepath="matched_trees/", 
   if(isTRUE(save)) splits %>% bind_rows(.id = "Year") %>% write.csv(paste0(filepath,stand_id,"/",stand_id,".csv"),row.names = FALSE)
   print(stand_id)
 }
+
+
+#' Find the most similar image in a folder.
+#' @param img_list A list of files contained in path, e.g. dir(path, full.names=FALSE)
+#' @param path Path to the folder containing images to be evaluated.
+#' @param img An internal Image or array (load with [png::readPNG]) which should
+#'  be transformed to the images in img_list
+#' @return A list containing i) The transformed source image, ii) The target image
+#' which returned the highest similarity, iii) A list of the similarity scores
+#' for all evaluated images.
+most_similar_img <- function(img, img_list,path='matched_trees/mismatches/'){
+
+
+  similarity_list <- list()
+  for(i in 1:length(img_list)){
+    assign('img_to_test',png::readPNG(paste0(path,{img_list[i]})))
+    transformed_source <- RNiftyReg::niftyreg.linear(img,img_to_test)
+    similarityvalue <- RNiftyReg::similarity(transformed_source$image,img_to_test)
+    similarity_list[{img_list[i]}] <- similarityvalue
+  }
+  max_transform <- png::readPNG(paste0(path,names(which.max(similarity_list))))
+  source_transform <- RNiftyReg::niftyreg.linear(img,max_transform)$image
+
+  return(
+    list(
+      transformed_source = source_transform,
+      #transforms target image to a 'niftiImage' so output doesn't clutter.
+      target_image = RNifti::asNifti(png::readPNG(paste0(path,names(which.max(similarity_list))))),
+      similarity_out = sort(unlist(similarity_list),decreasing=TRUE)
+    )
+  )
+}
+
+
