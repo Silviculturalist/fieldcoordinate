@@ -317,6 +317,47 @@ translate_coordinates.coord.data.frame <- function(coord.data.frame,x,y){
 translate_coordinates <- function(coord.data.frame,x,y){UseMethod("translate_coordinates")}
 
 
+#' Scale a coordinate system
+#' @param coord.data.frame A coord.data.frame
+#' @param Sx Scaling factor for x-axis.
+#' @param Sy Scaling factor for y-axis.
+#' @return A coord.data.frame
+#' @export
+scale_coordinates.coord.data.frame <- function(coord.data.frame,Sx,Sy){
+
+  coord.data.frame[,"x"] <- coord.data.frame[,"x"]*Sx
+  coord.data.frame[,"y"] <- coord.data.frame[,"y"]*Sy
+
+  return(
+    coord.data.frame
+  )
+}
+
+#'@export
+scale_coordinates <- function(coord.data.frame,Sx,Sy){UseMethod("scale_coordinates")}
+
+
+#' Shear a coordinate system
+#' @param coord.data.frame A coord.data.frame
+#' @param Qx Shear factor for X-axis.
+#' @param Qy Shear factor for Y-axis.
+#' @return A coord.data.frame
+shear_coordinates <- function(coord.data.frame,Qx=0,Qy=0){UseMethod("shear_coordinates")}
+
+shear_coordinates.coord.data.frame <- function(coord.data.frame,Qx=0,Qy=0){
+  coord.data.frame[,"x"] <- coord.data.frame[,"x"] + coord.data.frame[,"y"]*Qx
+  coord.data.frame[,"y"] <- coord.data.frame[,"y"] + coord.data.frame[,"x"]*Qy
+
+
+  return(
+    coord.data.frame
+  )
+}
+
+
+
+
+
 
 #' Apply a transform from NiftyReg on a coordinate.
 #' @param coord.data.frame A coord.data.frame containing the coordinates to be
@@ -334,7 +375,7 @@ coordinate_transform.coord.data.frame <- function(coord.data.frame, affine_matri
   #translation
   coord.data.frame2<- translate_coordinates(coord.data.frame = {{coord.data.frame}},x = translate_x,y = translate_y)
 
-  #skew
+  #yaw
   coord.data.frame2 <- coordinate_rotation(coord.data.frame2,rotation = yaw)
 
   return(
