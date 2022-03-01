@@ -365,18 +365,24 @@ shear_coordinates.coord.data.frame <- function(coord.data.frame,Qx=0,Qy=0){
 #' @param affine_matrix A NiftyReg affine matrix. Class 'affine'.
 #' @details OBSERVE, this only finds translation and skew.
 #' @return A coord.data.frame
-#' @export
+
 coordinate_transform.coord.data.frame <- function(coord.data.frame, affine_matrix){
 
   yaw <- RNiftyReg::decomposeAffine(affine_matrix)[["angles"]][["yaw"]]
-  translate_x <- RNiftyReg::decomposeAffine(affine_matrix)[["translation"]][["x"]]
-  translate_y <- RNiftyReg::decomposeAffine(affine_matrix)[["translation"]][["y"]]
+  translate_x <- RNiftyReg::decomposeAffine(affine_matrix)[["translation"]][["x"]]*img_resolution
+  translate_y <- RNiftyReg::decomposeAffine(affine_matrix)[["translation"]][["y"]]*img_resolution
+  coord.scale_x <- RNiftyReg::decomposeAffine(affine_matrix)[["scales"]][["x"]]
+  coord.scale_y <- RNiftyReg::decomposeAffine(affine_matrix)[["scales"]][["y"]]
+  shear_x <- RNiftyReg::decomposeAffine(affine_matrix)[["skews"]][["xy"]]
 
   #translation
   coord.data.frame2<- translate_coordinates(coord.data.frame = {{coord.data.frame}},x = translate_x,y = translate_y)
 
   #yaw
   coord.data.frame2 <- coordinate_rotation(coord.data.frame2,rotation = yaw)
+
+  #scaling
+  coord.data.frame2 <- scale_coordinates(coord.data.frame2,Sx=coord.scale_x,Sy = coord.scale_y)
 
   return(
     coord.data.frame2
@@ -505,5 +511,45 @@ most_similar_img <- function(img, img_list,path='matched_trees/mismatches/'){
     )
   )
 }
+
+#' Apply the transform between two images to a coord.data.frame
+#'@coord.data.frame Coord.data.frame with points to be transformed.
+#'@source Source image
+#'@target Target image
+#'@transform Affine matrix.
+#'@img_resolution Image resolution.
+#'@return A coord.data.frame
+#'
+applyTransform.coord.data.frame <- function(coord.data.frame,transform,img_resolution=0.1){
+  transform2 <- decomposeAffine(transform)
+
+
+  yaw <- transform2[["angles"]][["yaw"]]
+  translate_x <- transform2[["translation"]][["x"]]
+  translate_y <- transform2[["translation"]][["y"]]
+  coord.scale_x <- transform2[["scales"]][["x"]]
+  coord.scale_y <- transform2[["scales"]][["y"]]
+  shear_x <- transform2[["skews"]][["xy"]]
+
+  #translation
+  coord.data.frame2<- translate_coordinates(coord.data.frame = {{coord.data.frame}},x = -translate_x,y = -translate_y)
+
+  #yaw
+  coord.data.frame2 <- coordinate_rotation(coord.data.frame2,rotation = -yaw)
+
+  #scaling
+  coord.data.frame2 <- scale_coordinates(coord.data.frame2,Sx=coord.scale_x,Sy = coord.scale_y)
+
+  #shear x
+  coord.data.frame2 <- shear_coordinates(coord.data.frame2,Qy=shear_x/img_resolution)
+
+
+  return(
+    coord.data.frame2
+  )
+
+}
+
+
 
 
