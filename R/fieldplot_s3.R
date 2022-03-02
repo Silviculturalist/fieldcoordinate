@@ -191,9 +191,9 @@ match_rotate <- function(data,coord.df2,diameter_tolerance=3){ UseMethod("match_
 
 # Plotting a coord.data.frame
 #'@export
-plot.coord.data.frame <- function(data,radius=10){
+plot.coord.data.frame <- function(data,radius=10,size,color){
  data %>% ggplot2::ggplot(aes(x=x,y=y)) +
-    ggplot2::geom_point(size=(data$diameter)/100,color=data$species)+
+    ggplot2::geom_point(data=data,aes(size={{size}},color={{color}}))+
     ggplot2::coord_fixed()+
     ggforce::geom_circle(aes(x0=0,y0=0,r=radius),inherit.aes=FALSE,size=1/10)
 }
@@ -337,61 +337,22 @@ scale_coordinates.coord.data.frame <- function(coord.data.frame,Sx,Sy){
 scale_coordinates <- function(coord.data.frame,Sx,Sy){UseMethod("scale_coordinates")}
 
 
-#' Shear a coordinate system
-#' @param coord.data.frame A coord.data.frame
-#' @param Qx Shear factor for X-axis.
-#' @param Qy Shear factor for Y-axis.
-#' @return A coord.data.frame
-shear_coordinates <- function(coord.data.frame,Qx=0,Qy=0){UseMethod("shear_coordinates")}
-
-shear_coordinates.coord.data.frame <- function(coord.data.frame,Qx=0,Qy=0){
-  coord.data.frame[,"x"] <- coord.data.frame[,"x"] + coord.data.frame[,"y"]*Qx
-  coord.data.frame[,"y"] <- coord.data.frame[,"y"] + coord.data.frame[,"x"]*Qy
-
-
-  return(
-    coord.data.frame
-  )
-}
-
-
-
-
-
-
-#' Apply a transform from NiftyReg on a coordinate.
-#' @param coord.data.frame A coord.data.frame containing the coordinates to be
-#' transformed.
-#' @param affine_matrix A NiftyReg affine matrix. Class 'affine'.
-#' @details OBSERVE, this only finds translation and skew.
-#' @return A coord.data.frame
-
-coordinate_transform.coord.data.frame <- function(coord.data.frame, affine_matrix){
-
-  yaw <- RNiftyReg::decomposeAffine(affine_matrix)[["angles"]][["yaw"]]
-  translate_x <- RNiftyReg::decomposeAffine(affine_matrix)[["translation"]][["x"]]*img_resolution
-  translate_y <- RNiftyReg::decomposeAffine(affine_matrix)[["translation"]][["y"]]*img_resolution
-  coord.scale_x <- RNiftyReg::decomposeAffine(affine_matrix)[["scales"]][["x"]]
-  coord.scale_y <- RNiftyReg::decomposeAffine(affine_matrix)[["scales"]][["y"]]
-  shear_x <- RNiftyReg::decomposeAffine(affine_matrix)[["skews"]][["xy"]]
-
-  #translation
-  coord.data.frame2<- translate_coordinates(coord.data.frame = {{coord.data.frame}},x = translate_x,y = translate_y)
-
-  #yaw
-  coord.data.frame2 <- coordinate_rotation(coord.data.frame2,rotation = yaw)
-
-  #scaling
-  coord.data.frame2 <- scale_coordinates(coord.data.frame2,Sx=coord.scale_x,Sy = coord.scale_y)
-
-  return(
-    coord.data.frame2
-  )
-
-}
-
-#'@export
-coordinate_transform <- function(coord.data.frame, affine_matrix) UseMethod("coordinate_transform")
+#' #' Shear a coordinate system
+#' #' @param coord.data.frame A coord.data.frame
+#' #' @param Qx Shear factor for X-axis.
+#' #' @param Qy Shear factor for Y-axis.
+#' #' @return A coord.data.frame
+#' shear_coordinates <- function(coord.data.frame,Qx=0,Qy=0){UseMethod("shear_coordinates")}
+#'
+#' shear_coordinates.coord.data.frame <- function(coord.data.frame,Qx=0,Qy=0){
+#'   coord.data.frame[,"x"] <- coord.data.frame[,"x"] + coord.data.frame[,"y"]*Qx
+#'   coord.data.frame[,"y"] <- coord.data.frame[,"y"] + coord.data.frame[,"x"]*Qy
+#'
+#'
+#'   return(
+#'     coord.data.frame
+#'   )
+#' }
 
 
 #' Reflect a coordinate system.
@@ -419,7 +380,7 @@ coordinate_reflect.coord.data.frame <- function(coord.data.frame,x=TRUE,y=FALSE)
 #'@export
 coordinate_reflect <- function(coord.data.frame,x=TRUE,y=FALSE) UseMethod("coordinate_reflect")
 
-
+#' Match trees between years.
 #'@param data A data.frame
 #'@param stand_id A character with the variable name which identifies stands.
 #'@param Year A character with the variable name denoting different years.
@@ -466,7 +427,7 @@ match_trees <- function(data, stand_id, Year='Year', filepath="matched_trees/", 
     affine_transformation <- RNiftyReg::niftyreg.linear(source = gauss_1,target = gauss_max)
 
     #undertake transform
-    splits[[i]]<- splits[[i]] %>% coordinate_transform(affine_matrix = RNiftyReg::forward(affine_transformation))
+    splits[[i]]<- splits[[i]] %>% coordinate_transform(transform = RNiftyReg::forward(affine_transformation))
 
     #save out.. image
     png::writePNG(image=affine_transformation$image,target = paste0(filepath,stand_id,"/",stand_id,"_year_",names(splits[i]),"_project_to_",names(splits[max_index]),".png"))
@@ -513,35 +474,33 @@ most_similar_img <- function(img, img_list,path='matched_trees/mismatches/'){
 }
 
 #' Apply the transform between two images to a coord.data.frame
-#'@coord.data.frame Coord.data.frame with points to be transformed.
-#'@source Source image
-#'@target Target image
-#'@transform Affine matrix.
-#'@img_resolution Image resolution.
-#'@return A coord.data.frame
-#'
-applyTransform.coord.data.frame <- function(coord.data.frame,transform,img_resolution=0.1){
+#' @details OBSERVE, implements methods for yaw, translation and scaling.
+#' @coord.data.frame Coord.data.frame with points to be transformed.
+#' @transform Affine matrix.
+#' @return A coord.data.frame
+#' @export
+coordinate_transform <- function(coord.data.frame,transform){
   transform2 <- decomposeAffine(transform)
 
 
   yaw <- transform2[["angles"]][["yaw"]]
-  translate_x <- transform2[["translation"]][["x"]]
-  translate_y <- transform2[["translation"]][["y"]]
+  translate_x <- transform2[["translation"]][["x"]]*0.1
+  translate_y <- transform2[["translation"]][["y"]]*0.1
   coord.scale_x <- transform2[["scales"]][["x"]]
   coord.scale_y <- transform2[["scales"]][["y"]]
-  shear_x <- transform2[["skews"]][["xy"]]
 
-  #translation
-  coord.data.frame2<- translate_coordinates(coord.data.frame = {{coord.data.frame}},x = -translate_x,y = -translate_y)
+
+  #scaling
+  coord.data.frame2 <- scale_coordinates({{coord.data.frame}},Sx=coord.scale_x,Sy = coord.scale_y)
 
   #yaw
   coord.data.frame2 <- coordinate_rotation(coord.data.frame2,rotation = -yaw)
 
-  #scaling
-  coord.data.frame2 <- scale_coordinates(coord.data.frame2,Sx=coord.scale_x,Sy = coord.scale_y)
+  #translation
+  coord.data.frame2<- translate_coordinates(coord.data.frame = coord.data.frame2,x = translate_x,y = translate_y)
 
-  #shear x
-  coord.data.frame2 <- shear_coordinates(coord.data.frame2,Qy=shear_x/img_resolution)
+
+
 
 
   return(
