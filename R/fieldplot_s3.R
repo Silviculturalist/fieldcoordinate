@@ -11,16 +11,20 @@
 #' @param id Column containing the individual identifier of each coordinate point.
 #' @param x Column containing the x-coordinate of each coordinate point.
 #' @param y Column containing the y-coordinate of each coordinate point.
+#' @param coordinate_type One of "index" or "world".
 #' @param ... Attribute columns which should be preserved.
 #' @export
 #' @examples
 #'coords <- data.frame(id1,x1,y1,d1,species1)
 #'names(coords) <- c("id","x","y","diameter","species")
 #'coords %>% as.coord.data.frame(id = id,x = x,y = y,diameter,species)
-as.coord.data.frame <- function(.data,id,x,y,...){
+as.coord.data.frame <- function(.data,id,x,y,...,coordinate_type='world'){
+  #NB ellipsis before args with default.
+  stopifnot(coordinate_type %in% c('world','index'))
   quos <- enquos(...)
   output <- .data %>% select(id={{id}},x={{x}},y={{y}},!!!quos)
   class(output) <- c("coord.data.frame","data.frame")
+  attr(output,"coordinate_type") <- coordinate_type
   return(
     output
   )
