@@ -477,39 +477,86 @@ most_similar_img <- function(img, img_list,path='matched_trees/mismatches/'){
   )
 }
 
-#' Apply the transform between two images to a coord.data.frame
-#' @details OBSERVE, implements methods for yaw, translation and scaling.
-#' @coord.data.frame Coord.data.frame with points to be transformed.
-#' @transform Affine matrix.
-#' @return A coord.data.frame
-#' @export
-coordinate_transform <- function(coord.data.frame,transform){
-  transform2 <- decomposeAffine(transform)
 
+#From world coordinates to array index.
+#'@export
+coordinate_to_index_central_origin <- function(coordinate,axis="x",radius,res){
+  if(axis=="x")return(findInterval(coordinate,seq(-radius,radius,res))) else return(((radius/res)*2)-findInterval(coordinate,seq(-radius,radius,res))+1)
+}
 
-  yaw <- transform2[["angles"]][["yaw"]]
-  translate_x <- transform2[["translation"]][["x"]]*0.1 #img_resolution
-  translate_y <- transform2[["translation"]][["y"]]*0.1 #img_resolution
-  coord.scale_x <- transform2[["scales"]][["x"]]
-  coord.scale_y <- transform2[["scales"]][["y"]]
+#'@export
+coordinates_to_index.coord.data.frame <- function(data,radius,res){
+  stopifnot(attr(data,"coordinate_type")=='world')
+  data2 <- data
+  data2[,"x"] <- coordinate_to_index_central_origin(data2[,"x"],axis = "x",radius = {radius},res={res})
+  data2[,"y"] <- coordinate_to_index_central_origin(data2[,"y"],axis = "y",radius = {radius},res={res})
 
-
-  #scaling
-  coord.data.frame2 <- scale_coordinates({{coord.data.frame}},Sx=coord.scale_x,Sy = coord.scale_y)
-
-  #yaw
-  coord.data.frame2 <- coordinate_rotation(coord.data.frame2,rotation = -yaw)
-
-  #translation
-  coord.data.frame2<- translate_coordinates(coord.data.frame = coord.data.frame2,x = translate_x,y = translate_y)
-
-
-
-
+  attr(data2,"coordinate_type") <- 'index'
 
   return(
-    coord.data.frame2
+    data2
+  )
+}
+
+#' Transform coordinate type of a  coord.data.frame from 'world' to 'index' type.
+#' @param data A coord.data.frame with attribute coordinate_type == 'world'.
+#' @param radius Plot radius, for calculating coordinate indices.
+#' @param res Plot resolution, for calculating coordinate indices.
+#' @return A coord.data.frame with attribute coordinate_type == 'index'.
+#' @export
+coordinates_to_index <- function(data,radius,res){UseMethod("coordinates_to_index")}
+
+#From array index to world coordinates
+#'@export
+index_to_coordinates_central_origin <- function(index,radius,res){
+  if(((radius-(index*res))+(res/2))>radius | ((radius-(index*res))+(res/2))<(-radius) ) warning("Outside radius bounds")
+  #add half resolution for px centre representation.
+  return(
+    (radius-(index*res))+(res/2)
+  )
+}
+
+#'@export
+index_to_coordinates.coord.data.frame <- function(data,radius,res){
+  stopifnot(attr(data,"coordinate_type")=='index')
+  data2 <- data
+  data2[,"x"] <- index_to_coordinates_central_origin(index=data2[,"x"],radius = {radius},res={res})
+  data2[,"y"] <- index_to_coordinates_central_origin(index=data2[,"y"],radius = {radius},res={res})
+
+  attr(data2,"coordinate_type") <- 'world'
+
+  return(
+    data2
+  )
+}
+
+#' Transform coordinate type of a  coord.data.frame from 'index' to 'world' type.
+#' @param data A coord.data.frame with attribute coordinate_type == 'index'.
+#' @param radius Plot radius, for calculating coordinate indices.
+#' @param res Plot resolution, for calculating coordinate indices.
+#' @return A coord.data.frame with attribute coordinate_type == 'world'.
+#' @export
+index_to_coordinates <- function(data,radius,res){UseMethod("index_to_coordinates")}
+
+#' Apply the transform between two images to a coord.data.frame
+#' @details OBSERVE, can reduce coordinate resolution by (1/2)*res.
+#' @param data Coord.data.frame with points to be transformed.
+#' @param transformation Affine matrix.
+#' @param radius Plot radius, to calculate coordinate indices.
+#' @param res Plot resolution, to calculate coordinate indices.
+#' @return A coord.data.frame
+#' @export
+coordinate_transform <- function(data,transformation,radius=10,res=0.1){
+  stopifnot("coord.data.frame" %in% class(data))
+  stopifnot(attr(data,"coordinate_type")=='world')
+  data2 <- data %>% coordinates_to_index(radius={radius},res={res})
+
+  data2[,c("x","y")] <- applyTransform(transform=transformation,x=as.matrix(data2[,c("x","y")]))
+
+  data2 <- data2 %>% index_to_coordinates(radius = {radius},res = {res})
+
+  return(
+    data2
   )
 
 }
-
