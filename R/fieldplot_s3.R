@@ -235,7 +235,7 @@ produce_gauss_array.coord.data.frame <- function(data,point_strength=diameter,po
 
   point_strength_vector <- data %>% select({{point_strength}})
 
-  value_matrix <-  data.frame(x=seq(-radius+resolution/2,radius-resolution/2,resolution)) %>% merge(data.frame(y=seq(-radius+resolution/2,radius-resolution/2,resolution))) %>% mutate(value=0)
+  value_matrix <-  data.frame(x=seq(-radius,radius,resolution)) %>% merge(data.frame(y=seq(-radius,radius,resolution))) %>% mutate(value=0)
 
   value_matrix2 <- value_matrix
 
@@ -244,13 +244,9 @@ produce_gauss_array.coord.data.frame <- function(data,point_strength=diameter,po
     y0 <- data[i,"y"]
     point_strength_list <- data %>% select(!!{point_strength})
     point_strength_list <- point_strength_list[i,]
-
     value_matrix2 <- value_matrix2 %>% mutate(value2=round(point_strength_list*exp(-((((x-x0)^2)/(2*position_error^2))+((y-y0)^2)/(2*position_error^2))),digits = 3))
-
     value_matrix2 <- value_matrix2 %>% rowwise() %>% mutate(value= max(value,value2,na.rm=TRUE)) %>% select(-value2) %>% ungroup()
   }
-
-  value_matrix2 <- value_matrix2 %>% pivot_wider(names_from = x,values_from = value) %>%  select(-y) %>% unname() %>% as.array()
 
   class(value_matrix2) <- c("gauss.coord.array","array")
   attr(value_matrix2,'res') <- resolution
