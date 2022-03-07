@@ -227,11 +227,11 @@ match_reflect <- function(data,coord.df2,diameter_tolerance=3){UseMethod("match_
 
 
 #'@export
-produce_gauss_matrix.coord.data.frame <- function(data,point_strength=diameter,position_error=0.5,radius=10,resolution=0.2){
+produce_gauss_array.coord.data.frame <- function(data,point_strength=diameter,position_error=0.5,radius=10,resolution=0.2){
 
   point_strength_vector <- data %>% select({{point_strength}})
 
-  value_matrix <-  data.frame(x=seq(-radius,radius,resolution)) %>% merge(data.frame(y=seq(-radius,radius,resolution))) %>% mutate(value=0)
+  value_matrix <-  data.frame(x=seq(-radius+resolution/2,radius-resolution/2,resolution)) %>% merge(data.frame(y=seq(-radius+resolution/2,radius-resolution/2,resolution))) %>% mutate(value=0)
 
   value_matrix2 <- value_matrix
 
@@ -246,7 +246,9 @@ produce_gauss_matrix.coord.data.frame <- function(data,point_strength=diameter,p
     value_matrix2 <- value_matrix2 %>% rowwise() %>% mutate(value= max(value,value2,na.rm=TRUE)) %>% select(-value2) %>% ungroup()
   }
 
-  class(value_matrix2) <- c("gauss.coord.data.frame","data.frame")
+  value_matrix2 <- value_matrix2 %>% pivot_wider(names_from = x,values_from = value) %>%  select(-y) %>% unname() %>% as.array()
+
+  class(value_matrix2) <- c("gauss.coord.array","array")
   attr(value_matrix2,'res') <- resolution
   attr(value_matrix2,'radius') <- radius
 
@@ -256,6 +258,8 @@ produce_gauss_matrix.coord.data.frame <- function(data,point_strength=diameter,p
 
 }
 
+
+
 #'Convert a coord.data.frame to a matrix with points represented as a gaussian process.
 #'@param data A coord.data.frame
 #'@param point_strength An attribute to be used as the amplitude of the gaussian process.
@@ -263,20 +267,20 @@ produce_gauss_matrix.coord.data.frame <- function(data,point_strength=diameter,p
 #'@param radius Radius of plot.
 #'@param resolution Resolution of output matrix.
 #'@export
-#'@return A gauss.coord.data.frame containing columns: x,y,value.
-produce_gauss_matrix <- function(data,point_strength,position_error=0.5,radius=10,resolution=0.2){UseMethod("produce_gauss_matrix")}
+#'@return A gauss.coord.array containing columns: x,y,value.
+produce_gauss_array <- function(data,point_strength,position_error=0.5,radius=10,resolution=0.2){UseMethod("produce_gauss_array")}
 
 
-#'Plot a gauss.coord.data.frame
+#'Plot a gauss.coord.array
 #'@export
-plot.gauss.coord.data.frame <- function(x){
+plot.gauss.coord.array <- function(x){
   x %>% ggplot2::ggplot()+ggplot2::geom_raster(ggplot2::aes(x=x,y=y,fill=value))+ggplot2::theme_void()+ggplot2::coord_fixed()+ggplot2::theme(legend.position = 0,
                                                                                        plot.margin = unit(c(0,0,0,0),"mm"))
 }
 
 
 #'@export
-save_gauss.gauss.coord.data.frame <- function(x,filename){
+save_gauss.gauss.coord.array <- function(x,filename){
   stopifnot(is.character(filename))
   if(!grepl(filename,pattern='.png$')) filename <- str_glue(filename,'.png')
   plot1 <- x %>% ggplot2::ggplot()+
@@ -291,8 +295,8 @@ save_gauss.gauss.coord.data.frame <- function(x,filename){
   dev.off()
 }
 
-#'Save a gauss.coord.data.frame as a .png in the working directory.
-#'@param x A gauss.coord.data.frame
+#'Save a gauss.coord.array as a .png in the working directory.
+#'@param x A gauss.coord.array
 #'@param filename A filename, including extension.
 #'@export
 save_gauss <- function(x,filename){UseMethod("save_gauss")}
@@ -411,7 +415,7 @@ match_trees <- function(data, stand_id, Year='Year', filepath="matched_trees/", 
   if(!dir.exists(str_glue(filepath,stand_id))) dir.create(str_glue(filepath,stand_id))
 
   #Save a representation for maximum year.
-  splits[[max_index]] %>% as.coord.data.frame(id=id,x=x,y=y,Species,Diameter,Height) %>% produce_gauss_matrix(point_strength = 'Diameter',position_error = 0.5,radius=10,resolution=0.1) %>%  save_gauss(filename = str_glue(filepath,stand_id,"/",stand_id,"_year_",names(splits[max_index])))
+  splits[[max_index]] %>% as.coord.data.frame(id=id,x=x,y=y,Species,Diameter,Height) %>% produce_gauss_array(point_strength = 'Diameter',position_error = 0.5,radius=10,resolution=0.1) %>%  save_gauss(filename = str_glue(filepath,stand_id,"/",stand_id,"_year_",names(splits[max_index])))
 
   #read representation
   gauss_max <- png::readPNG(paste0(str_glue(filepath,stand_id,"/",stand_id,"_year_",names(splits[max_index]),".png")))
@@ -419,7 +423,7 @@ match_trees <- function(data, stand_id, Year='Year', filepath="matched_trees/", 
   #try to shift coordinates to latest year (max_index)
   for(i in 1:(max_index-1)){
     #save gaussian representation for year i.
-    splits[[i]] %>% as.coord.data.frame(id=id,x=x,y=y,Species,Diameter,Height) %>%  produce_gauss_matrix(point_strength = 'Diameter',position_error = 0.5,radius=10,resolution=0.1) %>%  save_gauss(filename = str_glue(filepath,stand_id,"/",stand_id,"_year_",names(splits[i])))
+    splits[[i]] %>% as.coord.data.frame(id=id,x=x,y=y,Species,Diameter,Height) %>%  produce_gauss_array(point_strength = 'Diameter',position_error = 0.5,radius=10,resolution=0.1) %>%  save_gauss(filename = str_glue(filepath,stand_id,"/",stand_id,"_year_",names(splits[i])))
 
     #find appropriate transform
     gauss_1 <- png::readPNG(source = paste0(str_glue(filepath,stand_id,"/",stand_id,"_year_",names(splits[i]),".png")))
@@ -484,8 +488,8 @@ coordinate_transform <- function(coord.data.frame,transform){
 
 
   yaw <- transform2[["angles"]][["yaw"]]
-  translate_x <- transform2[["translation"]][["x"]]*0.1
-  translate_y <- transform2[["translation"]][["y"]]*0.1
+  translate_x <- transform2[["translation"]][["x"]]*0.1 #img_resolution
+  translate_y <- transform2[["translation"]][["y"]]*0.1 #img_resolution
   coord.scale_x <- transform2[["scales"]][["x"]]
   coord.scale_y <- transform2[["scales"]][["y"]]
 
@@ -508,7 +512,4 @@ coordinate_transform <- function(coord.data.frame,transform){
   )
 
 }
-
-
-
 
