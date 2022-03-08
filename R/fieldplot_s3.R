@@ -506,22 +506,34 @@ coordinates_to_index.coord.data.frame <- function(data,radius,res){
 #' @export
 coordinates_to_index <- function(data,radius,res){UseMethod("coordinates_to_index")}
 
-#From array index to world coordinates
-#'@export
-index_to_coordinates_central_origin <- function(index,radius,res){
-  if(((radius-(index*res))+(res/2))>radius | ((radius-(index*res))+(res/2))<(-radius) ) warning("Outside radius bounds")
+
+index_to_coordinates_central_origin <- function(index,axis="x",radius,res){
+  if(((radius-(index*res))+(res/2))>radius) warning("Coordinate Point outside radius bounds")
+  if(((radius-(index*res))+(res/2))<(-radius)) warning("Coordinate Point outside radius bounds")
   #add half resolution for px centre representation.
+
+  if(axis=="y")
   return(
     (radius-(index*res))+(res/2)
   )
+
+  if(axis=="x")
+    return(
+      (-radius+(index*res))-(res/2)
+    )
+
 }
+
+#From array index to world coordinates
+#'@export
+index_to_coordinates_central_origin <- Vectorize(index_to_coordinates_central_origin,vectorize.args = c('index'))
 
 #'@export
 index_to_coordinates.coord.data.frame <- function(data,radius,res){
   stopifnot(attr(data,"coordinate_type")=='index')
   data2 <- data
-  data2[,"x"] <- index_to_coordinates_central_origin(index=data2[,"x"],radius = {radius},res={res})
-  data2[,"y"] <- index_to_coordinates_central_origin(index=data2[,"y"],radius = {radius},res={res})
+  data2[,"x"] <- index_to_coordinates_central_origin(index=data2[,"x"],axis="x",radius = {radius},res={res})
+  data2[,"y"] <- index_to_coordinates_central_origin(index=data2[,"y"],axis="y",radius = {radius},res={res})
 
   attr(data2,"coordinate_type") <- 'world'
 
