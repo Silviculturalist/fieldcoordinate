@@ -9,7 +9,7 @@ Description: A package for handling and matching coordinate points from
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true
-Imports: 
+Depends: 
     dplyr,
     ggforce,
     ggplot2,
