@@ -230,12 +230,15 @@ match_reflect.coord.data.frame <- function(data,coord.df2,diameter_tolerance=3){
 match_reflect <- function(data,coord.df2,diameter_tolerance=3){UseMethod("match_reflect")}
 
 
+
+#Gauss array Rotate Left, Rotate Left, flip vertical.
+#Byrow ... y inverted?
 #'@export
-produce_gauss_array.coord.data.frame <- function(data,point_strength=diameter,position_error=0.5,radius=10,resolution=0.2){
+produce_gauss_array.coord.data.frame <- function(data,point_strength=diameter,position_error=0.5,radius=10,resolution=0.1){
 
   point_strength_vector <- data %>% select({{point_strength}})
 
-  value_matrix <-  data.frame(x=seq(-radius,radius,resolution)) %>% merge(data.frame(y=seq(-radius,radius,resolution))) %>% mutate(value=0)
+  value_matrix <-  data.frame(x=seq((-radius+resolution/2),(radius-resolution/2),resolution)) %>% merge(data.frame(y=seq((radius-resolution/2),(-radius+resolution/2),-resolution))) %>% mutate(value=0)
 
   value_matrix2 <- value_matrix
 
@@ -248,7 +251,9 @@ produce_gauss_array.coord.data.frame <- function(data,point_strength=diameter,po
     value_matrix2 <- value_matrix2 %>% rowwise() %>% mutate(value= max(value,value2,na.rm=TRUE)) %>% select(-value2) %>% ungroup()
   }
 
-  class(value_matrix2) <- c("gauss.coord.array","array")
+  value_matrix2 <- matrix(value_matrix2$value,ncol=2*radius/resolution,nrow=2*radius/resolution,dimnames=NULL,byrow=TRUE)
+
+  class(value_matrix2) <- c("gauss.coord.array","matrix")
   attr(value_matrix2,'res') <- resolution
   attr(value_matrix2,'radius') <- radius
 
@@ -262,13 +267,13 @@ produce_gauss_array.coord.data.frame <- function(data,point_strength=diameter,po
 
 #'Convert a coord.data.frame to a matrix with points represented as a gaussian process.
 #'@param data A coord.data.frame
-#'@param point_strength An attribute to be used as the amplitude of the gaussian process.
+#'@param point_strength An attribute to be used as the amplitude of the gaussian process. Typically 'Diameter'.
 #'@param position_error Standard deviation of gaussian process.
 #'@param radius Radius of plot.
-#'@param resolution Resolution of output matrix.
+#'@param resolution Resolution of output matrix. Do not recommend higher resolution (lower values) than 0.1. Significant computing time.
 #'@export
 #'@return A gauss.coord.array containing columns: x,y,value.
-produce_gauss_array <- function(data,point_strength,position_error=0.5,radius=10,resolution=0.2){UseMethod("produce_gauss_array")}
+produce_gauss_array <- function(data,point_strength,position_error=0.5,radius=10,resolution=0.1){UseMethod("produce_gauss_array")}
 
 
 #'Plot a gauss.coord.array
@@ -279,20 +284,32 @@ plot.gauss.coord.array <- function(x){
 }
 
 
+#'Save a gauss.coord.array as a png without any borders.
 #'@export
 save_gauss.gauss.coord.array <- function(x,filename){
   stopifnot(is.character(filename))
+  if(.Platform$OS.type != "unix") stop("This function will only work on unix systems. Windows not yet implemented.")
   if(!grepl(filename,pattern='.png$')) filename <- str_glue(filename,'.png')
-  plot1 <- x %>% ggplot2::ggplot()+
-    ggplot2::geom_raster(ggplot2::aes(x=x,y=y,fill=value))+
-    ggplot2::coord_fixed()+
-    cowplot::theme_nothing()+
-    ggplot2::scale_x_continuous(expand=c(0,0)) +
-    ggplot2::scale_y_continuous(expand=c(0,0)) +
-    ggplot2::labs(x = NULL, y = NULL)
-  png(filename={filename},width=attr(x,'radius')/attr(x,'res'),height = attr(x,'radius')/attr(x,'res'),units = 'px')
-  print(plot1)
+
+  #Check dpi
+
+
+  #Create graphics device
+  dev.new(nrow(x,))
+
+  #No margins, grey background
+  par(mai=c(0,0,0,0),bg='grey70')
+
+  #Plot matrix as raster in greyscale.
+  image(x,asp=1,useRaster=TRUE,col=grey(0:255/255))
+
+  #Save on unix.
+  quartz.save(file = filename,type = 'png',device = dev.cur(),width=units())
+  #To do: must have same extents as columns.?
+
+  #Close graphics device.
   dev.off()
+
 }
 
 #'Save a gauss.coord.array as a .png in the working directory.
