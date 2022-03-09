@@ -279,8 +279,17 @@ produce_gauss_array <- function(data,point_strength,position_error=0.5,radius=10
 #'Plot a gauss.coord.array
 #'@export
 plot.gauss.coord.array <- function(x){
-  x %>% ggplot2::ggplot()+ggplot2::geom_raster(ggplot2::aes(x=x,y=y,fill=value))+ggplot2::theme_void()+ggplot2::coord_fixed()+ggplot2::theme(legend.position = 0,
-                                                                                       plot.margin = unit(c(0,0,0,0),"mm"))
+
+  x_range <- range(x[is.finite(x)])
+
+  #Image has odd conventions... first flip matrix vertically and then transpose.
+  x2 <- apply(x,2,rev)
+  x2 <- t(x2)
+
+  #Plot matrix as raster in greyscale.
+  par(mai=c(0,0,0,0),xaxt="n",yaxt="n")
+  image(x2,asp=1,useRaster=TRUE,col=grey(0:255/255),zlim=sort(x_range))
+
 }
 
 
@@ -288,24 +297,24 @@ plot.gauss.coord.array <- function(x){
 #'@export
 save_gauss.gauss.coord.array <- function(x,filename){
   stopifnot(is.character(filename))
-  if(.Platform$OS.type != "unix") stop("This function will only work on unix systems. Windows not yet implemented.")
   if(!grepl(filename,pattern='.png$')) filename <- str_glue(filename,'.png')
 
-  #Check dpi
+  #Z (color range)
+  x_range <- range(x[is.finite(x)])
 
+
+  #Image has odd conventions... first flip matrix vertically and then transpose.
+  x2 <- apply(x,2,rev)
+  x2 <- t(x2)
 
   #Create graphics device
-  dev.new(nrow(x,))
+  png(filename,width = dim(x),height=dim(x),units = 'px',res=1)
 
   #No margins, grey background
   par(mai=c(0,0,0,0),bg='grey70')
 
   #Plot matrix as raster in greyscale.
-  image(x,asp=1,useRaster=TRUE,col=grey(0:255/255))
-
-  #Save on unix.
-  quartz.save(file = filename,type = 'png',device = dev.cur(),width=units())
-  #To do: must have same extents as columns.?
+  image(x2,asp=1,useRaster=TRUE,col=grey(0:255/255),zlim=sort(x_range))
 
   #Close graphics device.
   dev.off()
