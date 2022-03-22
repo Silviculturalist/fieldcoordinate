@@ -11,20 +11,17 @@
 #' @param id Column containing the individual identifier of each coordinate point.
 #' @param x Column containing the x-coordinate of each coordinate point.
 #' @param y Column containing the y-coordinate of each coordinate point.
-#' @param coordinate_type One of "index" or "world".
 #' @param ... Attribute columns which should be preserved.
 #' @export
 #' @examples
 #'coords <- data.frame(id1,x1,y1,d1,species1)
 #'names(coords) <- c("id","x","y","diameter","species")
 #'coords %>% as.coord.data.frame(id = id,x = x,y = y,diameter,species)
-as.coord.data.frame <- function(.data,id,x,y,...,coordinate_type='world'){
+as.coord.data.frame <- function(.data,id,x,y,...){
   #NB ellipsis before args with default.
-  stopifnot(coordinate_type %in% c('world','index'))
   quos <- enquos(...)
   output <- .data %>% select(id={{id}},x={{x}},y={{y}},!!!quos)
   class(output) <- c("coord.data.frame","data.frame")
-  attr(output,"coordinate_type") <- coordinate_type
   return(
     output
   )
@@ -504,78 +501,6 @@ most_similar_img <- function(img, img_list,path='matched_trees/mismatches/'){
 }
 
 
-#From world coordinates to array index.
-#'@export
-coordinate_to_index_central_origin <- function(coordinate,axis="x",radius,res){
-  if(axis=="x")return(findInterval(coordinate,seq(-radius,radius,res))) else return(((radius/res)*2)-findInterval(coordinate,seq(-radius,radius,res))+1)
-}
-
-#'@export
-coordinates_to_index.coord.data.frame <- function(data,radius,res){
-  stopifnot(attr(data,"coordinate_type")=='world')
-  data2 <- data
-  data2[,"x"] <- coordinate_to_index_central_origin(data2[,"x"],axis = "x",radius = {radius},res={res})
-  data2[,"y"] <- coordinate_to_index_central_origin(data2[,"y"],axis = "y",radius = {radius},res={res})
-
-  attr(data2,"coordinate_type") <- 'index'
-
-  return(
-    data2
-  )
-}
-
-#' Transform coordinate type of a  coord.data.frame from 'world' to 'index' type.
-#' @param data A coord.data.frame with attribute coordinate_type == 'world'.
-#' @param radius Plot radius, for calculating coordinate indices.
-#' @param res Plot resolution, for calculating coordinate indices.
-#' @return A coord.data.frame with attribute coordinate_type == 'index'.
-#' @export
-coordinates_to_index <- function(data,radius,res){UseMethod("coordinates_to_index")}
-
-
-index_to_coordinates_central_origin <- function(index,axis="x",radius,res){
-  if(((radius-(index*res))+(res/2))>radius) warning("Coordinate Point outside radius bounds")
-  if(((radius-(index*res))+(res/2))<(-radius)) warning("Coordinate Point outside radius bounds")
-  #add half resolution for px centre representation.
-
-  if(axis=="y")
-  return(
-    (radius-(index*res))+(res/2)
-  )
-
-  if(axis=="x")
-    return(
-      (-radius+(index*res))-(res/2)
-    )
-
-}
-
-#From array index to world coordinates
-#'@export
-index_to_coordinates_central_origin <- Vectorize(index_to_coordinates_central_origin,vectorize.args = c('index'))
-
-#'@export
-index_to_coordinates.coord.data.frame <- function(data,radius,res){
-  stopifnot(attr(data,"coordinate_type")=='index')
-  data2 <- data
-  data2[,"x"] <- index_to_coordinates_central_origin(index=data2[,"x"],axis="x",radius = {radius},res={res})
-  data2[,"y"] <- index_to_coordinates_central_origin(index=data2[,"y"],axis="y",radius = {radius},res={res})
-
-  attr(data2,"coordinate_type") <- 'world'
-
-  return(
-    data2
-  )
-}
-
-#' Transform coordinate type of a  coord.data.frame from 'index' to 'world' type.
-#' @param data A coord.data.frame with attribute coordinate_type == 'index'.
-#' @param radius Plot radius, for calculating coordinate indices.
-#' @param res Plot resolution, for calculating coordinate indices.
-#' @return A coord.data.frame with attribute coordinate_type == 'world'.
-#' @export
-index_to_coordinates <- function(data,radius,res){UseMethod("index_to_coordinates")}
-
 #' Apply the transform between two images to a coord.data.frame
 #' @param data Coord.data.frame with points to be transformed. Must contain vars: 'Diameter', 'Year', 'x','y'.
 #' @param source_year Coordinate year to transform. From which to produce source image.
@@ -587,7 +512,6 @@ index_to_coordinates <- function(data,radius,res){UseMethod("index_to_coordinate
 coordinate_transform <- function(data,target_year,source_year,radius=10,res=0.1){
 
   stopifnot("coord.data.frame" %in% class(data))
-  stopifnot(attr(data,"coordinate_type")=='world')
 
   # This matrix contains information about the resolution (diagonal) and the offset/origin (last column)
   xform <- matrix(c(res,    0, 0,  -radius,
