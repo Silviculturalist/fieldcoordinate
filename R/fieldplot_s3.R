@@ -577,24 +577,55 @@ index_to_coordinates.coord.data.frame <- function(data,radius,res){
 index_to_coordinates <- function(data,radius,res){UseMethod("index_to_coordinates")}
 
 #' Apply the transform between two images to a coord.data.frame
-#' @details OBSERVE, can reduce coordinate resolution by (1/2)*res.
-#' @param data Coord.data.frame with points to be transformed.
-#' @param transformation Affine matrix.
-#' @param radius Plot radius, to calculate coordinate indices.
-#' @param res Plot resolution, to calculate coordinate indices.
+#' @param data Coord.data.frame with points to be transformed. Must contain vars: 'Diameter', 'Year', 'x','y'.
+#' @param source_year Coordinate year to transform. From which to produce source image.
+#' @param target_year Target coordinate year from which to produce target image.
+#' @param radius Default (10 m radius plots) Plot radius, to calculate coordinate indices.
+#' @param res Default (0.1) Plot resolution, to calculate coordinate indices.
 #' @return A coord.data.frame
 #' @export
-coordinate_transform <- function(data,transformation,radius=10,res=0.1){
+coordinate_transform <- function(data,target_year,source_year,radius=10,res=0.1){
+
   stopifnot("coord.data.frame" %in% class(data))
   stopifnot(attr(data,"coordinate_type")=='world')
-  data2 <- data %>% coordinates_to_index(radius={radius},res={res})
 
-  data2[,c("x","y")] <- applyTransform(transform=transformation,x=as.matrix(data2[,c("x","y")]))
+  # This matrix contains information about the resolution (diagonal) and the offset/origin (last column)
+  xform <- matrix(c(res,    0, 0,  -radius,
+                    0, -res, 0,   radius,
+                    0,    0, 1,   0,
+                    0,    0, 0,   1), 4, 4, byrow=TRUE)
 
-  data2 <- data2 %>% index_to_coordinates(radius = {radius},res = {res})
+
+  #Target and source data
+  target_data <- data %>% filter(Year==target_year)
+  source_data <- data %>% filter(Year==source_year)
+
+  #create target and source arrays
+  target <- target_data %>% produce_gauss_array(radius={radius},point_strength='Diameter',res={res})
+  source <- source_data %>% produce_gauss_array(radius={radius},point_strength='Diameter',res={res})
+
+  #set attributes to array for RNiftyReg image registering to work.
+  RNiftyReg::pixdim(source) <- c({res},{res},1)
+  RNiftyReg::sform(source) <- structure(xform,code=2L)
+  RNiftyReg::pixdim(target) <- c({res},{res},1)
+  RNiftyReg::sform(target) <- structure(xform,code=2L)
+
+  #register
+  reg <- RNiftyReg::niftyreg.linear(source = source,target = target,nLevels = 1,scope = 'rigid')
+
+  # Transform the locations in three steps
+  # World-to-voxel and voxel-to-world convert between indices and "real space" according to the corresponding image's xform matrix
+  points <- RNifti::worldToVoxel(as.matrix(source_data[,c("x","y")]), source)
+  points <- applyTransform(reverse(reg), points)
+  points <- RNifti::voxelToWorld(points, target)
+  result <- data.frame(cbind("x"=points[,1], "y"=points[,2], subset(source_data,select=-c(x,y))))
+
+  out <- rbind(result,target_data) %>% as.coord.data.frame(id = id,x=x,y=y,Species,Diameter,Year)
 
   return(
-    data2
+    out
   )
 
 }
+
+
