@@ -619,6 +619,10 @@ save_transformation <- function(data,source_year,target_year,filepath="matched_t
   if(!dir.exists(filepath)) dir.create(filepath,showWarnings = FALSE) #Create results folder if not already exists.
 
   for(i in 1:(data %>% distinct(standnumber) %>% nrow())){
+
+    #In case of error
+    skip_to_next <- FALSE
+
     message(paste0(i," out of ",(data %>% distinct(standnumber) %>% nrow())))
 
     currentid <- (data %>% distinct(standnumber))[i,][[1]]
@@ -633,7 +637,12 @@ save_transformation <- function(data,source_year,target_year,filepath="matched_t
 
     message("Transforming coordinates...")
     #Transform coordinates with NiftyRegR and save images of source and target.
+    #tryCatch  catches error and continues with next.
+    tryCatch({
     reg <- data2 %>% fieldcoordinate:::coordinate_transform2(target_year = {target_year},source_year = {source_year},radius={radius},res={res},filepath="matched_trees")
+    }, error=function(e){skip_to_next <<- TRUE}) #assign in a parent environment.
+
+    if(skip_to_next) { next }
 
     #Save coordinates from transformed source and original target.
     write.csv(reg,row.names = FALSE,file = paste0(filepath,"/",currentid,"/",currentid,"_",source_year,"_to_",target_year,".csv"))
@@ -645,6 +654,7 @@ save_transformation <- function(data,source_year,target_year,filepath="matched_t
 
     #Print confirmation
     message(paste0("Plot ",currentid," Done."))
+
 
   }
 
