@@ -413,7 +413,6 @@ coordinate_reflect <- function(coord.data.frame,x=TRUE,y=FALSE) UseMethod("coord
 #'@param Year A character with the variable name denoting different years.
 #'@param save TRUE (default) / FALSE. Saves the transformed coordinates.
 #'@param filepath Folder in which to store matches (creates a subfolder for each stand)
-#'@export
 #'@examples
 #'tree_coords2_split <- tree_coords2 %>% group_by(standnumber,standnr2) %>% group_split(.keep = TRUE)
 #'lapply(tree_coords2_split,FUN = match_trees,stand_id = 'standnumber',Year = 'Year')
@@ -438,7 +437,7 @@ match_trees <- function(data, stand_id, Year='Year', filepath="matched_trees/", 
   if(!dir.exists(str_glue(filepath,stand_id))) dir.create(str_glue(filepath,stand_id))
 
   #Save a representation for maximum year.
-  splits[[max_index]] %>% as.coord.data.frame(id=id,x=x,y=y,Species,Diameter,Height) %>% produce_gauss_array(point_strength = 'Diameter',position_error = 0.5,radius=10,resolution=0.1) %>%  save_gauss(filename = str_glue(filepath,stand_id,"/",stand_id,"_year_",names(splits[max_index])))
+  splits[[max_index]] %>% as.coord.data.frame(id=id,x=x,y=y,Species,Diameter,Height) %>% produce_gauss_array(point_strength = 'Diameter',position_error = 0.5,radius=10,res=0.1) %>%  save_gauss(filename = str_glue(filepath,stand_id,"/",stand_id,"_year_",names(splits[max_index])))
 
   #read representation
   gauss_max <- png::readPNG(paste0(str_glue(filepath,stand_id,"/",stand_id,"_year_",names(splits[max_index]),".png")))
@@ -446,7 +445,7 @@ match_trees <- function(data, stand_id, Year='Year', filepath="matched_trees/", 
   #try to shift coordinates to latest year (max_index)
   for(i in 1:(max_index-1)){
     #save gaussian representation for year i.
-    splits[[i]] %>% as.coord.data.frame(id=id,x=x,y=y,Species,Diameter,Height) %>%  produce_gauss_array(point_strength = 'Diameter',position_error = 0.5,radius=10,resolution=0.1) %>%  save_gauss(filename = str_glue(filepath,stand_id,"/",stand_id,"_year_",names(splits[i])))
+    splits[[i]] %>% as.coord.data.frame(id=id,x=x,y=y,Species,Diameter,Height) %>%  produce_gauss_array(point_strength = 'Diameter',position_error = 0.5,radius=10,res=0.1) %>%  save_gauss(filename = str_glue(filepath,stand_id,"/",stand_id,"_year_",names(splits[i])))
 
     #find appropriate transform
     gauss_1 <- png::readPNG(source = paste0(str_glue(filepath,stand_id,"/",stand_id,"_year_",names(splits[i]),".png")))
@@ -502,12 +501,13 @@ most_similar_img <- function(img, img_list,path='matched_trees/mismatches/'){
 
 
 #' Apply the transform between two images to a coord.data.frame
-#' @param data Coord.data.frame with points to be transformed. Must contain vars: 'Diameter', 'Year', 'x','y'.
+#' @param data Coord.data.frame with points to be transformed. Must contain vars: 'Diameter','Species', 'Year', 'x','y'.
 #' @param source_year Coordinate year to transform. From which to produce source image.
 #' @param target_year Target coordinate year from which to produce target image.
 #' @param radius Default (10 m radius plots) Plot radius, to calculate coordinate indices.
 #' @param res Default (0.1) Plot resolution, to calculate coordinate indices.
 #' @return A coord.data.frame
+#' @name coordinate_transform1
 #' @export
 coordinate_transform <- function(data,target_year,source_year,radius=10,res=0.1){
 
@@ -552,4 +552,103 @@ coordinate_transform <- function(data,target_year,source_year,radius=10,res=0.1)
 
 }
 
+
+#' A shadow image of coordinate_transform that also saves images and the transform in a filepath.
+#' @description This function should be internal only.
+#'
+#' @param filepath A directory to create in which to store created images and transformation files.
+#' @inheritParams coordinate_transform1
+#' @keywords internal
+coordinate_transform2 <- function(data,target_year,source_year,filepath="matched_trees",radius=10,res=0.1){
+  stopifnot(data %>% distinct(standnumber) %>% nrow() == 1)
+  stopifnot(all(c("id","x","y","Diameter","Species") %in% colnames(data)))
+
+  #Get plotid for naming files.
+  plotid <- (data %>% distinct(standnumber))[[1,1]]
+
+  # This matrix contains information about the resolution (diagonal) and the offset/origin (last column)
+  xform <- matrix(c(res,    0, 0,  -radius,
+                    0, -res, 0,   radius,
+                    0,    0, 1,   0,
+                    0,    0, 0,   1), 4, 4, byrow=TRUE)
+
+
+  #Target and source data
+  target_data <- data %>% filter(Year==target_year)
+  source_data <- data %>% filter(Year==source_year)
+
+  #create target and source arrays
+  target <- target_data %>% produce_gauss_array(radius={radius},point_strength='Diameter',res={res})
+  source <- source_data %>% produce_gauss_array(radius={radius},point_strength='Diameter',res={res})
+
+  #save images
+  target %>% save_gauss(filename=paste0(filepath,"/",plotid,"/",plotid,"_",target_year,".png"))
+  source %>% save_gauss(filename=paste0(filepath,"/",plotid,"/",plotid,"_",source_year,".png"))
+
+
+  #set attributes to array for RNiftyReg image registering to work.
+  RNiftyReg::pixdim(source) <- c({res},{res},1)
+  RNiftyReg::sform(source) <- structure(xform,code=2L)
+  RNiftyReg::pixdim(target) <- c({res},{res},1)
+  RNiftyReg::sform(target) <- structure(xform,code=2L)
+
+  #register
+  reg <- RNiftyReg::niftyreg.linear(source = source,target = target,nLevels = 1,scope = 'rigid')
+
+  # Transform the locations in three steps
+  # World-to-voxel and voxel-to-world convert between indices and "real space" according to the corresponding image's xform matrix
+  points <- RNifti::worldToVoxel(as.matrix(source_data[,c("x","y")]), source)
+  points <- applyTransform(reverse(reg), points)
+  points <- RNifti::voxelToWorld(points, target)
+  result <- data.frame(cbind("x"=points[,1], "y"=points[,2], subset(source_data,select=-c(x,y))))
+
+  out <- rbind(result,target_data) %>% as.coord.data.frame(id = id,x=x,y=y,Species,Diameter,Year)
+
+  return(
+    out
+  )
+
+}
+
+
+#For running all stands..
+#' @export
+save_transformation <- function(data,source_year,target_year,filepath="matched_trees",radius=10,res=0.1){
+  stopifnot(all(c("standnumber","id","x","y","Year","Diameter","Species")%in%colnames({data})))
+
+  if(!dir.exists(filepath)) dir.create(filepath,showWarnings = FALSE) #Create results folder if not already exists.
+
+  for(i in 1:(data %>% distinct(standnumber) %>% nrow())){
+    message(paste0(i," out of ",(data %>% distinct(standnumber) %>% nrow())))
+
+    currentid <- (data %>% distinct(standnumber))[i,][[1]]
+    dir.create(paste0(filepath,"/",currentid),showWarnings = FALSE) #Create plot results folder.
+
+    data2 <- data %>% filter(standnumber == currentid)
+    #Skip if not source year and target year are available
+    if(!all(c(source_year, target_year)%in%data2$"Year")){
+      message("Source or Target Year not available for plot. Jumping to next plot.")
+      next()
+    }
+
+    message("Transforming coordinates...")
+    #Transform coordinates with NiftyRegR and save images of source and target.
+    reg <- data2 %>% fieldcoordinate:::coordinate_transform2(target_year = {target_year},source_year = {source_year},radius={radius},res={res},filepath="matched_trees")
+
+    #Save coordinates from transformed source and original target.
+    write.csv(reg,row.names = FALSE,file = paste0(filepath,"/",currentid,"/",currentid,"_",source_year,"_to_",target_year,".csv"))
+
+    message("Saving transformed image...")
+    #Save image of transformed source.
+    reg %>% filter(Year=={source_year}) %>% produce_gauss_array(point_strength = 'Diameter') %>% save_gauss(filename = paste0(filepath,"/",currentid,"/",currentid,"_",source_year,"_to_",target_year,".png"))
+
+
+    #Print confirmation
+    message(paste0("Plot ",currentid," Done."))
+
+  }
+
+  #message when finished.
+  message("Finished all plots.")
+}
 
